@@ -20,7 +20,7 @@ Microservicio Spring Boot (Java 21) que administra las **publicaciones** (avisos
 | `price` | `Integer` | en CLP, obligatorio, `>= 0` |
 | `grade` | enum `GRADE_A / GRADE_B / GRADE_C` | estado de conservación, obligatorio |
 | `usageTimeMonths` | `Integer` | opcional, `>= 0` |
-| `status` | enum `ACTIVE / RESERVED / SOLD / IN_INSPECTION` | por defecto `ACTIVE` al crear |
+| `status` | enum `ACTIVE / RESERVED / SOLD / IN_INSPECTION / WITHDRAWN` | por defecto `ACTIVE` al crear |
 | `createdAt` | `LocalDateTime` | autogenerado |
 | `images` | lista de `PublicationImage` | `OneToMany`, cascada total |
 
@@ -37,24 +37,27 @@ Microservicio Spring Boot (Java 21) que administra las **publicaciones** (avisos
 
 Todos bajo `/api/publications`.
 
+> **Autenticación simulada por headers** (aún no hay Gateway/Authorizer real): los endpoints de **escritura** exigen `X-User-Id` y `X-User-Role` (`401` si faltan). El `sellerId` de una publicación sale **siempre** del header `X-User-Id` en creación, no del body. Las operaciones de escritura validan **ownership** (`403` si no eres el `sellerId`) y `PATCH /status` exige rol `WORKSHOP_ADMIN` (`403`).
+
 | Método | Path | Body / Params | Qué hace |
 |---|---|---|---|
-| `POST` | `/` | `PublicationRequest` | Crea una publicación nueva con `status = ACTIVE`. Devuelve `201`. |
-| `GET` | `/{id}` | — | Busca por `publicationId`. `404` si no existe. |
-| `GET` | `/` | `?sellerId=` o `?status=` (opcionales, excluyentes) | Sin params → todas. Con `sellerId` → las de ese vendedor. Con `status` → filtra por estado. |
-| `PUT` | `/{id}` | `PublicationRequest` | Actualiza `title`, `description`, `price`, `grade`, `usageTimeMonths`. **No** toca `sellerId` ni `productId` (son inmutables una vez creada). |
-| `PATCH` | `/{id}/status` | `UpdateStatusRequest { status }` | Cambia solo el estado del ciclo de vida (ej. pasar a `RESERVED`, `SOLD`, etc.). |
+| `POST` | `/` | `PublicationRequest` | Crea una publicación nueva con `status = ACTIVE`. `sellerId` sale del header `X-User-Id`. Devuelve `201`. |
+| `GET` | `/{id}` | — | Busca por `publicationId`. `404` si no existe. Público. |
+| `GET` | `/` | `?sellerId=`, `?status=`, `?productId=`, `?maxPrice=`, `?grade=`, `?page=`, `?limit=` (combinables) | Listado **paginado** (Page de Spring, `page`/`limit` 1-based). Sin params → todas. Público. |
+| `PUT` | `/{id}` | `PublicationRequest` (incluye `status` opcional `ACTIVE/WITHDRAWN`) | Solo dueño. Actualiza `title`, `description`, `price`, `grade`, `usageTimeMonths` y opcionalmente `status`. **No** toca `sellerId` ni `productId`. |
+| `PATCH` | `/{id}/status` | `UpdateStatusRequest { status }` | Solo `WORKSHOP_ADMIN`. Cambia el estado del ciclo de vida (`RESERVED`, `SOLD`, etc.). |
 | `DELETE` | `/{id}` | — | Borra la publicación (y sus imágenes, por cascada). `204`. |
-| `POST` | `/{id}/images` | `PublicationImageRequest { imageUrl, isPrimary }` | Agrega una imagen a la publicación. Si `isPrimary=true`, desmarca cualquier otra imagen primaria existente. `201`. |
-| `DELETE` | `/{id}/images/{imageId}` | — | Quita una imagen puntual de la publicación. |
-| `PATCH` | `/{id}/images/{imageId}/primary` | — | Marca esa imagen como primaria y desmarca todas las demás de la misma publicación. |
+| `POST` | `/{id}/images` | `PublicationImageRequest { imageUrl, isPrimary }` | Solo dueño. Agrega una imagen. Si `isPrimary=true`, desmarca cualquier otra primaria. `201`. |
+| `DELETE` | `/{id}/images/{imageId}` | — | Solo dueño. Quita una imagen puntual. |
+| `PATCH` | `/{id}/images/{imageId}/primary` | — | Solo dueño. Marca esa imagen como primaria y desmarca las demás. |
 
 ### Validaciones (Bean Validation, `PublicationRequest`)
-- `sellerId`, `productId`, `title`: `@NotBlank`
+- `productId`, `title`: `@NotBlank` (el `sellerId` ya no va en el request: sale del header)
 - `title`: máx. 150 caracteres
 - `price`: `@NotNull`, `@Min(0)`
 - `grade`: `@NotNull`
 - `usageTimeMonths`: `@Min(0)` si viene
+- `status` (solo en `PUT`): restringido a `ACTIVE` / `WITHDRAWN`; cualquier otro valor → `403`
 - `PublicationImageRequest.imageUrl`: `@NotBlank`
 - `UpdateStatusRequest.status`: `@NotNull`
 
@@ -63,16 +66,18 @@ Todos bajo `/api/publications`.
 |---|---|---|
 | `PublicationNotFoundException` | 404 | `ErrorResponse { status, message, timestamp }` |
 | `NoSuchElementException` (imagen no encontrada) | 404 | idem |
+| `UnauthorizedException` (faltan `X-User-Id`/`X-User-Role`) | 401 | idem |
+| `ForbiddenException` (ownership/rol) | 403 | idem |
 | `MethodArgumentNotValidException` (falla de `@Valid`) | 400 | mapa `{ campo: mensaje }` |
 | `IllegalArgumentException` | 400 | `ErrorResponse` |
 
 ## Flujo típico de uso
 
-1. El vendedor crea la publicación → `POST /api/publications` (queda `ACTIVE`).
+1. El vendedor crea la publicación con su `X-User-Id` → `POST /api/publications` (queda `ACTIVE`; `sellerId` sale del header).
 2. Se le agregan una o más imágenes → `POST /api/publications/{id}/images` (la primera puede marcarse `isPrimary=true`).
-3. Búsquedas del catálogo → `GET /api/publications?status=ACTIVE` o `?sellerId=...`.
-4. Cuando alguien reserva/compra → `PATCH /api/publications/{id}/status` para mover el estado (`RESERVED` → `SOLD`), o `IN_INSPECTION` si aplica revisión.
-5. Edición de datos comerciales (precio, título, descripción, grade) → `PUT /api/publications/{id}`.
+3. Búsquedas del catálogo → `GET /api/publications?status=ACTIVE` o `?sellerId=...` (público y paginado).
+4. Cuando alguien reserva/compra → `PATCH /api/publications/{id}/status` (solo `WORKSHOP_ADMIN`) para mover el estado (`RESERVED` → `SOLD`), o `IN_INSPECTION` si aplica revisión.
+5. Edición de datos comerciales o publicar/retirar (`ACTIVE`↔`WITHDRAWN`) → `PUT /api/publications/{id}` (solo dueño).
 6. Baja definitiva → `DELETE /api/publications/{id}`.
 
 

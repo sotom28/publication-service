@@ -3,10 +3,12 @@ package com.pcmarketbuilder.publication_service.Repository;
 import com.pcmarketbuilder.publication_service.Model.Publication;
 import com.pcmarketbuilder.publication_service.Model.PublicationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 
-public interface PublicationRepository extends JpaRepository<Publication, String> {
+public interface PublicationRepository extends JpaRepository<Publication, String>,
+        JpaSpecificationExecutor<Publication> {
 
     List<Publication> findBySellerId(String sellerId);
 

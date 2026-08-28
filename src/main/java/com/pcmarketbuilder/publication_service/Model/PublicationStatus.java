@@ -13,5 +13,6 @@ public enum PublicationStatus {
     ACTIVE,
     RESERVED,
     SOLD,
-    IN_INSPECTION
+    IN_INSPECTION,
+    WITHDRAWN
 }
