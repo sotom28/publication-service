@@ -24,13 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/publications")
+@RequestMapping("/api/v1/publications")
 @RequiredArgsConstructor
 public class PublicationController {
 
     private final PublicationService publicationService;
 
-    @PostMapping
+    @PostMapping("/crear")
     public ResponseEntity<PublicationResponse> create(@Valid @RequestBody PublicationRequest request) {
         var created = publicationService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(PublicationResponse.fromEntity(created));
@@ -41,7 +41,7 @@ public class PublicationController {
         return ResponseEntity.ok(PublicationResponse.fromEntity(publicationService.getById(id)));
     }
 
-    @GetMapping("/")
+    @GetMapping("/listartodos")
     public ResponseEntity<List<PublicationResponse>> getAll(
             @RequestParam(required = false) String sellerId,
             @RequestParam(required = false) PublicationStatus status) {
