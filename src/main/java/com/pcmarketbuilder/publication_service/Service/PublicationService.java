@@ -129,7 +129,11 @@ public class PublicationService {
     }
 
     @Transactional
-    public void delete(String publicationId) {
+    public void delete(String publicationId, AuthContext auth) {
+        // Borrar una publicación es una acción moderadora (afecta a otro usuario,
+        // el vendedor), no de autogestión: se reserva al rol administrativo del taller.
+        auth.requireRole(AuthContext.ROLE_WORKSHOP_ADMIN);
+
         Publication publication = getById(publicationId);
         publicationRepository.delete(publication);
     }
