@@ -1,26 +1,19 @@
-# 1. Build stage: compila el jar con Maven
-FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
-
-WORKDIR /app
-
-COPY pom.xml .
-RUN mvn -B dependency:go-offline
-
-COPY src ./src
-RUN mvn -B clean package -DskipTests
-
-# 2. Runtime stage: solo el JRE + el jar (imagen final liviana)
+# Imagen de runtime: recibe el jar ya compilado por el CI (GitHub Actions).
+# El workflow ejecuta los tests y empaqueta (mvn package) antes de construir
+# esta imagen; aquí solo se copia el jar del build context (target/).
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-COPY --from=build /app/target/*.jar app.jar
+# Ruta del jar dentro del build context. Por defecto el que genera mvn package.
+ARG JAR_FILE=target/*.jar
+COPY ${JAR_FILE} app.jar
 
 # Puerto que usa la aplicación
 EXPOSE 8083
 
-# Las variables de entorno (DB_URL, DB_USERNAME, DB_PASSWORD, etc.)
-# se pasan en tiempo de ejecución, ej: docker run --env-file .env ...
+# Las variables de entorno (DB_HOST, DB_USER, DB_PASSWORD, SERVER_IP, etc.)
+# se pasan en tiempo de ejecución (--env-file .env / variables del orquestador).
 # Nunca copiar el archivo .env dentro de la imagen.
 
-CMD ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

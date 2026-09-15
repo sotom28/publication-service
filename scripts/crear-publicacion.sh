@@ -13,7 +13,7 @@ set -e
 
 BASE_URL="${BASE_URL:-http://localhost:8083}"
 PRODUCTS_URL="${PRODUCTS_URL:-http://localhost:8080}"
-SELLER_ID="${SELLER_ID:-11111111-1111-1111-1111-111111111111}"
+SELLER_ID="${SELLER_ID:-2150f48f-e611-439c-83cf-37eed0c5f232}"
 ROLE="${ROLE:-BUYER_SELLER}"
 
 # Si no se fija un PRODUCT_ID, lo tomamos del primer producto del catálogo.
@@ -32,7 +32,7 @@ BODY=$(jq -n \
   '{productId:$pid, title:"RTX 3090 usada - prueba", description:"GPU en buen estado, se vende porque upgrade.", price:450000, grade:"GRADE_B", usageTimeMonths:12}')
 
 resp=$(curl -s -w '\n%{http_code}' \
-  -X POST "${BASE_URL}/api/publications" \
+  -X POST "${BASE_URL}/api/v1/publications" \
   -H "Content-Type: application/json" \
   -H "X-User-Id: ${SELLER_ID}" \
   -H "X-User-Role: ${ROLE}" \
@@ -48,5 +48,5 @@ if [ "$code" = "201" ]; then
   pid=$(printf '%s' "$json" | jq -r '.publicationId')
   echo
   echo "Publicación creada: $pid"
-  echo "Verla:  curl -s ${BASE_URL}/api/publications/${pid} | jq"
+  echo "Verla:  curl -s ${BASE_URL}/api/v1/publications/${pid} | jq"
 fi
