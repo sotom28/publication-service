@@ -80,8 +80,10 @@ public class PublicationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable("id") String id) {
-        publicationService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable("id") String id,
+                                       @RequestHeader(value = AuthContext.USER_ID_HEADER, required = false) String userId,
+                                       @RequestHeader(value = AuthContext.ROLE_HEADER, required = false) String role) {
+        publicationService.delete(id, new AuthContext(userId, role));
         return ResponseEntity.noContent().build();
     }
 

@@ -46,4 +46,16 @@ public record AuthContext(String userId, String role) {
                     "No tienes permiso para operar sobre esta publicación (owner: " + sellerId + ")");
         }
     }
+
+    /**
+     * Valida que el usuario sea el dueño del recurso o tenga el rol indicado.
+     * Aplica a operaciones destructivas que también puede ejecutar un
+     * administrador del taller (p. ej. borrar una publicación ajena).
+     */
+    public void requireOwnerOrRole(String sellerId, String allowedRole) {
+        if (hasRole(allowedRole)) {
+            return;
+        }
+        requireOwner(sellerId);
+    }
 }
