@@ -18,10 +18,11 @@ Aún no existe un Gateway/Authorizer real (Azure Entra ID / AWS Cognito). Mientr
 | `X-User-Role` | Rol del usuario autenticado. | `BUYER_SELLER` o `WORKSHOP_ADMIN` |
 
 **Reglas:**
-- Los endpoints de **escritura** (`POST`, `PUT`, `PATCH` y `DELETE` de imágenes) exigen ambos headers → **`401 Unauthorized`** si faltan.
+- Todos los endpoints de **escritura** (`POST`, `PUT`, `PATCH` y `DELETE`) exigen ambos headers → **`401 Unauthorized`** si faltan.
 - Los endpoints de **lectura** (`GET`) son públicos (catálogo), no requieren headers.
 - `create()` toma el `sellerId` exclusivamente del header `X-User-Id`. Cualquier `sellerId` que llegue en el body se **ignora**.
 - Operaciones sobre una publicación ajena (no eres el `sellerId`) → **`403 Forbidden`**.
+- `DELETE /{id}` es la excepción: acepta dueño **o** rol `WORKSHOP_ADMIN`.
 - `PATCH /{id}/status` exige rol **`WORKSHOP_ADMIN`** → si no, **`403`**.
 
 ---
@@ -191,11 +192,13 @@ Cada elemento de `images`:
 
 ---
 
-### `DELETE /api/publications/{id}` — Eliminar publicación
+### `DELETE /api/v1/publications/{id}` — Eliminar publicación (dueño o admin)
+
+**Headers requeridos:** `X-User-Id`, `X-User-Role`. Debes ser el `sellerId` **o** tener rol `WORKSHOP_ADMIN` → **`403`** si no.
 
 **Respuesta `204 No Content`:** sin cuerpo. Borra la publicación y sus imágenes (cascada).
 
-**Respuesta `404 Not Found`:** si el id no existe.
+**Errores:** `401` sin headers; `403` si no eres dueño ni admin; `404` si el id no existe.
 
 > ⚠️ Borrado físico actual. Si ya existe un `order_item` en `db_payments` referenciando la publicación, queda una referencia rota (a resolver en fase posterior).
 

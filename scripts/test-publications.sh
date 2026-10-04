@@ -24,6 +24,7 @@ OTHER_ID="99999999-9999-9999-9999-999999999999"
 ADMIN_ROLE="WORKSHOP_ADMIN"
 ADMIN_HDR=(-H "X-User-Id: $SELLER_ID" -H "X-User-Role: $ADMIN_ROLE")
 OTHER_HDR=(-H "X-User-Id: $OTHER_ID" -H "X-User-Role: BUYER_SELLER")
+ADMIN2_HDR=(-H "X-User-Id: admin-0001" -H "X-User-Role: $ADMIN_ROLE")
 
 HTTP_COLOR='\033[1;36m'; OK_COLOR='\033[1;32m'; FAIL_COLOR='\033[1;31m'; DIM='\033[2m'; RESET='\033[0m'
 PASS=0
@@ -97,7 +98,7 @@ echo "  -> sellerId guardado=$P_SID (esperado $SELLER_ID)"
 if [[ "$P_SID" == "$SELLER_ID" ]]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  ${FAIL_COLOR}FAIL${RESET} sellerId del body prevaleció"; fi
 PID3B=$(jqget '.publicationId')
 # limpiamos la publicación de prueba del caso 3b (no forma parte del flujo principal)
-req -- DELETE "/api/v1/publications/$PID3B"
+req "${HDR_BASE[@]}" -- DELETE "/api/v1/publications/$PID3B"
 expect 204 "limpiar publicación de prueba 3b"
 
 # ---------- 4. validación 400 ----------
@@ -196,12 +197,28 @@ expect 200 "borrar imagen 2 (dueño)"
 NIMG=$(jqget '[.images[]] | length')
 echo "  -> imágenes restantes=$NIMG"
 
-# ---------- 12. DELETE publicación + 404 ----------
-section "12. DELETE /{id} y GET -> 404"
+# ---------- 12. DELETE publicación (ownership + rol admin) + 404 ----------
+section "12. DELETE /{id} (dueño o WORKSHOP_ADMIN) y GET -> 404"
+# sin headers -> 401
 req -- DELETE "/api/v1/publications/$PID"
-expect 204 "borrar publicación"
+expect 401 "DELETE sin headers -> 401"
+# otro usuario que NO es dueño -> 403
+req "${OTHER_HDR[@]}" -- DELETE "/api/v1/publications/$PID"
+expect 403 "DELETE de otro -> 403"
+# el dueño -> 204
+req "${HDR_BASE[@]}" -- DELETE "/api/v1/publications/$PID"
+expect 204 "borrar publicación (dueño)"
 req -- GET "/api/v1/publications/$PID"
 expect 404 "obtener borrada -> 404"
+
+# admin con identidad DISTINTA al dueño: puede borrar cualquier publicación
+req "${HDR_BASE[@]}" -- POST "/api/v1/publications" "$(SELLER_BODY 'Para borrar admin' '' 5000 GRADE_B)"
+expect 201 "crear publicación para borrado por admin"
+PID_ADMIN=$(jqget '.publicationId')
+req "${ADMIN2_HDR[@]}" -- DELETE "/api/v1/publications/$PID_ADMIN"
+expect 204 "borrar publicación (admin, no es dueño)"
+req -- GET "/api/v1/publications/$PID_ADMIN"
+expect 404 "publicación borrada por admin -> 404"
 
 # ---------- 13. 404s ----------
 section "13. 404s sobre id inexistente"
@@ -211,7 +228,7 @@ req "${HDR_BASE[@]}" -- PUT "/api/v1/publications/00000000-0000-0000-0000-000000
 expect 404 "PUT inexistente"
 req "${ADMIN_HDR[@]}" -- PATCH "/api/v1/publications/00000000-0000-0000-0000-000000000000/status" '{"status":"ACTIVE"}'
 expect 404 "PATCH status inexistente"
-req -- DELETE "/api/v1/publications/00000000-0000-0000-0000-000000000000"
+req "${HDR_BASE[@]}" -- DELETE "/api/v1/publications/00000000-0000-0000-0000-000000000000"
 expect 404 "DELETE inexistente"
 
 # ---------- resumen ----------

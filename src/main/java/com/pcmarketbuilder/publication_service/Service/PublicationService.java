@@ -129,8 +129,11 @@ public class PublicationService {
     }
 
     @Transactional
-    public void delete(String publicationId) {
+    public void delete(String publicationId, AuthContext auth) {
         Publication publication = getById(publicationId);
+        // Borrar es una operación destructiva: solo el dueño de la publicación
+        // o un administrador del taller pueden ejecutarla.
+        auth.requireOwnerOrRole(publication.getSellerId(), AuthContext.ROLE_WORKSHOP_ADMIN);
         publicationRepository.delete(publication);
     }
 
