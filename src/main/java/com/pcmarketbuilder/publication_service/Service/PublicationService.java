@@ -3,6 +3,8 @@ package com.pcmarketbuilder.publication_service.Service;
 import com.pcmarketbuilder.publication_service.Auth.AuthContext;
 import com.pcmarketbuilder.publication_service.Dto.PublicationImageRequest;
 import com.pcmarketbuilder.publication_service.Dto.PublicationRequest;
+import com.pcmarketbuilder.publication_service.Dto.PresignedUrlRequest;
+import com.pcmarketbuilder.publication_service.Dto.PresignedUrlResponse;
 import com.pcmarketbuilder.publication_service.Exception.ForbiddenException;
 import com.pcmarketbuilder.publication_service.Exception.PublicationNotFoundException;
 import com.pcmarketbuilder.publication_service.Model.Grade;
@@ -28,6 +30,7 @@ import java.util.NoSuchElementException;
 public class PublicationService {
 
     private final PublicationRepository publicationRepository;
+    private final S3Service s3Service;
 
     /**
      * Estados que el dueño (vendedor) puede fijar mediante el PUT.
@@ -134,7 +137,16 @@ public class PublicationService {
         // Borrar es una operación destructiva: solo el dueño de la publicación
         // o un administrador del taller pueden ejecutarla.
         auth.requireOwnerOrRole(publication.getSellerId(), AuthContext.ROLE_WORKSHOP_ADMIN);
+        if (publication.getImages() != null) {
+            publication.getImages().forEach(img -> s3Service.deleteObjectByUrl(img.getImageUrl()));
+        }
         publicationRepository.delete(publication);
+    }
+
+    public PresignedUrlResponse createPresignedImageUrl(String publicationId, PresignedUrlRequest request, AuthContext auth) {
+        Publication publication = getById(publicationId);
+        auth.requireOwner(publication.getSellerId());
+        return s3Service.createPresignedUploadUrl(publicationId, request);
     }
 
     @Transactional
@@ -166,7 +178,9 @@ public class PublicationService {
                 .orElseThrow(() -> new NoSuchElementException("No se encontró la imagen con id: " + imageId));
 
         publication.removeImage(image);
-        return publicationRepository.save(publication);
+        Publication saved = publicationRepository.save(publication);
+        s3Service.deleteObjectByUrl(image.getImageUrl());
+        return saved;
     }
 
     @Transactional

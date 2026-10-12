@@ -1,6 +1,8 @@
 package com.pcmarketbuilder.publication_service.Controller;
 
 import com.pcmarketbuilder.publication_service.Auth.AuthContext;
+import com.pcmarketbuilder.publication_service.Dto.PresignedUrlRequest;
+import com.pcmarketbuilder.publication_service.Dto.PresignedUrlResponse;
 import com.pcmarketbuilder.publication_service.Dto.PublicationImageRequest;
 import com.pcmarketbuilder.publication_service.Dto.PublicationRequest;
 import com.pcmarketbuilder.publication_service.Dto.PublicationResponse;
@@ -85,6 +87,16 @@ public class PublicationController {
                                        @RequestHeader(value = AuthContext.ROLE_HEADER, required = false) String role) {
         publicationService.delete(id, new AuthContext(userId, role));
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/images/presigned-url")
+    public ResponseEntity<PresignedUrlResponse> getPresignedImageUrl(
+            @PathVariable("id") String id,
+            @RequestHeader(value = AuthContext.USER_ID_HEADER, required = false) String userId,
+            @RequestHeader(value = AuthContext.ROLE_HEADER, required = false) String role,
+            @Valid @RequestBody PresignedUrlRequest request) {
+        return ResponseEntity.ok(
+                publicationService.createPresignedImageUrl(id, request, new AuthContext(userId, role)));
     }
 
     @PostMapping("/{id}/images")
